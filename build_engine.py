@@ -1,17 +1,16 @@
 import tvm
 from tvm import relay
 from tvm import auto_scheduler
-import onnx
-import gzip
-import pickle
-import numpy as np
+from torchvision.models import mobilenet_v2
+import torch
 
-model_path = "./gaze-sim-5.67.onnx"
 target = 'llvm -mtriple=aarch64-linux-gnu' # If you want to deploy the model on cuda, then target='cuda'
 target_host = 'llvm -mtriple=aarch64-linux-gnu'
 
-onnx_model = onnx.load(model_path)
-relay_module, params = relay.frontend.from_onnx(onnx_model)
+torch_model = mobilenet_v2(pretrained=True).eval()
+sample_input = torch.ones((1,3,224,224))
+pt_model = torch.jit.trace(torch_model, (sample_input,))
+relay_module, params = relay.frontend.from_pytorch(pt_model, [("input0", (1,3,224,224))])
 print("start quantization")
 with relay.quantize.qconfig(calibrate_mode="global_scale", global_scale=8.0):
     relay_module = relay.quantize.quantize(relay_module, params)
